@@ -33,7 +33,10 @@ const userSchema = new mongoose.Schema({
     profilePicUrl: String,
     skillsOffered: [String],
     skillsWanted: [String],
+    posts: [{ text: String, imageUrl: String }],
+    certifications: [{ title: String, imageUrl: String }],
     points: { type: Number, default: 0 },
+    isAdmin: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -74,20 +77,62 @@ const upload = multer({ storage: storage });
 // --- API Endpoints ---
 
 // Create or update User
-app.post('/api/users', upload.single('profilePic'), async (req, res) => {
+app.post('/api/users', upload.any(), async (req, res) => {
     try {
-        const { uid, email, name, bio, skillsOffered, skillsWanted } = req.body;
+        const { uid, email, name, bio, skillsOffered, skillsWanted, posts, certifications } = req.body;
         const parsedOffered = Array.isArray(skillsOffered) ? skillsOffered : JSON.parse(skillsOffered || '[]');
         const parsedWanted = Array.isArray(skillsWanted) ? skillsWanted : JSON.parse(skillsWanted || '[]');
+        const parsedPosts = Array.isArray(posts) ? posts : JSON.parse(posts || '[]');
+        const parsedCertifications = Array.isArray(certifications) ? certifications : JSON.parse(certifications || '[]');
+
+        let profilePicUrl;
+        const postImages = {}; 
+        const certImages = {}; 
+
+        if (req.files) {
+            for (const file of req.files) {
+                if (file.fieldname === 'profilePic') {
+                    profilePicUrl = file.path;
+                } else if (file.fieldname.startsWith('postImage_')) {
+                    const idx = file.fieldname.split('_')[1];
+                    postImages[idx] = file.path;
+                } else if (file.fieldname.startsWith('certImage_')) {
+                    const idx = file.fieldname.split('_')[1];
+                    certImages[idx] = file.path;
+                }
+            }
+        }
+
+        const finalPosts = parsedPosts.map((p, idx) => {
+            const isStr = typeof p === 'string';
+            return {
+                text: isStr ? p : p.text,
+                imageUrl: postImages[idx] || (isStr ? null : p.imageUrl) || null
+            };
+        });
+
+        const finalCerts = parsedCertifications.map((c, idx) => {
+            const isStr = typeof c === 'string';
+            return {
+                title: isStr ? c : c.title,
+                imageUrl: certImages[idx] || (isStr ? null : c.imageUrl) || null
+            };
+        });
 
         const updateData = {
             email, name, bio,
             skillsOffered: parsedOffered.map(s => s.trim().toLowerCase()),
-            skillsWanted: parsedWanted.map(s => s.trim().toLowerCase())
+            skillsWanted: parsedWanted.map(s => s.trim().toLowerCase()),
+            posts: finalPosts,
+            certifications: finalCerts
         };
 
-        if (req.file) {
-            updateData.profilePicUrl = req.file.path;
+        if (email.toLowerCase() === 'admin@universal.edu.in') {
+            updateData.isAdmin = true;
+        }
+
+        if (profilePicUrl) {
+            updateData.profilePicUrl = profilePicUrl;
         }
 
         const user = await User.findOneAndUpdate(
@@ -291,6 +336,45 @@ app.put('/api/collaborations/:id/lessons/:lessonId', async (req, res) => {
         lesson.completed = !lesson.completed;
         await request.save();
         res.json(request);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- Admin Endpoints ---
+
+app.post('/api/admin/query', async (req, res) => {
+    try {
+        const { modelName, operation, args } = req.body;
+        let model;
+        if (modelName === 'User') model = User;
+        else if (modelName === 'SwapRequest') model = SwapRequest;
+        else return res.status(400).json({ error: 'Invalid modelName' });
+
+        const parsedArgs = typeof args === 'string' ? JSON.parse(args || '[]') : (args || []);
+        
+        let result;
+        if (typeof model[operation] !== 'function') {
+           return res.status(400).json({ error: `Invalid operation on model ${modelName}` });
+        }
+        
+        // Wait for query evaluation
+        const queryResult = model[operation](...parsedArgs);
+        // Note: some mongoose results might be queries instead of promises.
+        result = await queryResult;
+        
+        res.json({ result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/admin/stats', async (req, res) => {
+    try {
+        const userCount = await User.countDocuments();
+        const requestCount = await SwapRequest.countDocuments();
+        const acceptedCount = await SwapRequest.countDocuments({ status: 'accepted' });
+        res.json({ userCount, requestCount, acceptedCount });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -7,7 +7,7 @@ import {
 import {
     Mail, Lock, Search, MessageSquare, Handshake, Check, X,
     LogOut, User as UserIcon, Loader2, Trophy, Flame, Edit3,
-    BookOpen, CheckSquare
+    BookOpen, CheckSquare, Database, Settings
 } from 'lucide-react';
 
 const firebaseConfig = {
@@ -142,6 +142,14 @@ function ProfileEditor({ isEditing, onClose }) {
     const [bio, setBio] = useState(dbUser?.bio || '');
     const [teaches, setTeaches] = useState(dbUser?.skillsOffered?.join(', ') || '');
     const [wants, setWants] = useState(dbUser?.skillsWanted?.join(', ') || '');
+    const [posts, setPosts] = useState(() => {
+        const p = dbUser?.posts || [];
+        return p.map(item => typeof item === 'string' ? { text: item, imageUrl: null } : { text: item.text || '', imageUrl: item.imageUrl || null });
+    });
+    const [certifications, setCertifications] = useState(() => {
+        const c = dbUser?.certifications || [];
+        return c.map(item => typeof item === 'string' ? { title: item, imageUrl: null } : { title: item.title || '', imageUrl: item.imageUrl || null });
+    });
     const [file, setFile] = useState(null);
     const [saving, setSaving] = useState(false);
 
@@ -156,6 +164,16 @@ function ProfileEditor({ isEditing, onClose }) {
             formData.append('bio', bio);
             formData.append('skillsOffered', JSON.stringify(teaches.split(',').map(s => s.trim()).filter(Boolean)));
             formData.append('skillsWanted', JSON.stringify(wants.split(',').map(s => s.trim()).filter(Boolean)));
+            formData.append('posts', JSON.stringify(posts.map(p => ({ text: p.text, imageUrl: p.imageUrl }))));
+            formData.append('certifications', JSON.stringify(certifications.map(c => ({ title: c.title, imageUrl: c.imageUrl }))));
+            
+            posts.forEach((p, idx) => {
+                if (p.file) formData.append(`postImage_${idx}`, p.file);
+            });
+            certifications.forEach((c, idx) => {
+                if (c.file) formData.append(`certImage_${idx}`, c.file);
+            });
+            
             if (file) formData.append('profilePic', file);
 
             const controller = new AbortController();
@@ -174,7 +192,7 @@ function ProfileEditor({ isEditing, onClose }) {
     };
 
     const formContent = (
-        <div className={`bg-white/95 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-xl w-full border border-gray-100 relative ${!isEditing ? 'my-12' : ''}`}>
+        <div className={`bg-white/95 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-xl w-full border border-gray-100 relative ${!isEditing ? 'my-12' : 'max-h-[90vh] min-h-[50vh] overflow-y-auto'}`}>
             {isEditing && (
                 <button onClick={onClose} className="absolute top-6 right-6 p-2 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-full transition">
                     <X className="w-6 h-6" />
@@ -209,6 +227,56 @@ function ProfileEditor({ isEditing, onClose }) {
                     <input type="text" value={wants} onChange={e => setWants(e.target.value)}
                         className="w-full px-5 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-teal-500 outline-none transition bg-gray-50 focus:bg-white" placeholder="Guitar, Photography, React" />
                 </div>
+                <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block text-sm font-bold text-gray-700">Certifications</label>
+                        <button type="button" onClick={() => setCertifications([...certifications, { title: '', imageUrl: null, file: null }])} className="text-sm text-teal-600 font-bold hover:underline">+ Add</button>
+                    </div>
+                    {certifications.map((cert, idx) => (
+                        <div key={idx} className="flex gap-2 mb-2 items-start bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                            <div className="flex-1 space-y-2">
+                                <input type="text" value={cert.title} onChange={e => {
+                                    const newC = [...certifications]; newC[idx].title = e.target.value; setCertifications(newC);
+                                }} className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-sm bg-white" placeholder="Certification Title..." />
+                                <div className="flex items-center gap-2">
+                                    <input type="file" accept="image/*" onChange={e => {
+                                        const newC = [...certifications]; newC[idx].file = e.target.files[0]; setCertifications(newC);
+                                    }} className="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+                                    {cert.imageUrl && !cert.file && <span className="text-xs text-green-600 font-bold">Image attached</span>}
+                                    {cert.file && <span className="text-[10px] text-orange-600 font-bold truncate max-w-[100px]">{cert.file.name}</span>}
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setCertifications(certifications.filter((_, i) => i !== idx))} className="text-red-500 hover:bg-red-50 p-2 rounded-xl transition">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+                <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block text-sm font-bold text-gray-700">Experience & Posts</label>
+                        <button type="button" onClick={() => setPosts([...posts, { text: '', imageUrl: null, file: null }])} className="text-sm text-teal-600 font-bold hover:underline">+ Add Post</button>
+                    </div>
+                    {posts.map((post, idx) => (
+                        <div key={idx} className="flex gap-2 mb-2 items-start bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                            <div className="flex-1 space-y-2">
+                                <textarea value={post.text} onChange={e => {
+                                    const newP = [...posts]; newP[idx].text = e.target.value; setPosts(newP);
+                                }} rows="2" className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none resize-none text-sm bg-white" placeholder="Share your experience..." />
+                                <div className="flex items-center gap-2">
+                                    <input type="file" accept="image/*" onChange={e => {
+                                        const newP = [...posts]; newP[idx].file = e.target.files[0]; setPosts(newP);
+                                    }} className="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 cursor-pointer" />
+                                    {post.imageUrl && !post.file && <span className="text-xs text-green-600 font-bold">Image attached</span>}
+                                    {post.file && <span className="text-[10px] text-orange-600 font-bold truncate max-w-[100px]">{post.file.name}</span>}
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setPosts(posts.filter((_, i) => i !== idx))} className="text-red-500 hover:bg-red-50 p-2 rounded-xl transition">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
                 <div className="pt-4">
                     <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white font-extrabold py-4 rounded-2xl hover:shadow-lg transform hover:-translate-y-0.5 transition-all flex justify-center items-center text-lg">
                         {saving ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Save Profile'}
@@ -222,12 +290,110 @@ function ProfileEditor({ isEditing, onClose }) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">{formContent}</div>;
 }
 
+function UserProfileModal({ user, onClose, onProposeSwap }) {
+    const [fullscreenImage, setFullscreenImage] = useState(null);
+    if (!user) return null;
+    return (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden relative my-auto">
+                <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-red-50 hover:text-red-600 rounded-full z-10 transition">
+                    <X className="w-5 h-5 text-gray-600 hover:text-red-600" />
+                </button>
+                <div className="p-8 max-h-[85vh] overflow-y-auto">
+                    <div className="flex items-center gap-5 mb-6">
+                        {user.profilePicUrl ? (
+                            <img src={user.profilePicUrl} className="w-20 h-20 rounded-full object-cover border-4 border-teal-50 shadow-md" />
+                        ) : (
+                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-100 to-teal-50 flex items-center justify-center border-4 border-white shadow-sm"><UserIcon className="w-10 h-10 text-teal-500" /></div>
+                        )}
+                        <div>
+                            <h2 className="font-extrabold text-2xl text-gray-900">{user.name}</h2>
+                            <div className="flex items-center gap-1.5 mt-1 bg-yellow-50 text-yellow-700 w-max px-2.5 py-0.5 rounded-md font-bold text-xs border border-yellow-100">
+                                <Trophy className="w-4 h-4" /> {user.points || 0} pts
+                            </div>
+                        </div>
+                    </div>
+
+                    <p className="text-gray-700 text-base mb-8 italic font-medium leading-relaxed bg-gray-50 p-4 rounded-xl border border-gray-100">"{user.bio}"</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div>
+                            <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-3">Can Teach</p>
+                            <div className="flex flex-wrap gap-2">
+                                {user.skillsOffered?.map(s => <span key={s} className="px-3 py-1.5 bg-teal-50 text-teal-800 text-sm font-bold rounded-xl border border-teal-100">{s}</span>)}
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-xs font-black text-orange-600 uppercase tracking-widest mb-3">Wants to Learn</p>
+                            <div className="flex flex-wrap gap-2">
+                                {user.skillsWanted?.map(s => <span key={s} className="px-3 py-1.5 bg-orange-50 text-orange-800 text-sm font-bold rounded-xl border border-orange-100">{s}</span>)}
+                            </div>
+                        </div>
+                    </div>
+
+                    {user.certifications && user.certifications.length > 0 && (
+                        <div className="mb-8">
+                            <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3">Certifications</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {user.certifications.map((c, idx) => {
+                                    const title = typeof c === 'string' ? c : c.title;
+                                    const img = typeof c === 'string' ? null : c.imageUrl;
+                                    return (
+                                        <div key={idx} className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex gap-3 shadow-sm items-center">
+                                            {img && <img src={img} onClick={() => setFullscreenImage(img)} className="w-14 h-14 object-cover rounded-lg shadow-sm border border-blue-200 shrink-0 cursor-pointer hover:opacity-80 transition-opacity" title="Click to expand" />}
+                                            <span className="text-blue-900 text-sm font-bold block">{title}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {user.posts && user.posts.length > 0 && (
+                        <div className="mb-8">
+                            <p className="text-xs font-black text-purple-600 uppercase tracking-widest mb-3">Experience & Posts</p>
+                            <div className="space-y-4">
+                                {user.posts.map((p, idx) => {
+                                    const text = typeof p === 'string' ? p : p.text;
+                                    const img = typeof p === 'string' ? null : p.imageUrl;
+                                    return (
+                                        <div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3">
+                                            {img && <img src={img} onClick={() => setFullscreenImage(img)} className="w-full max-h-60 object-scale-down bg-gray-50 rounded-lg shadow-sm border border-gray-100 cursor-pointer hover:opacity-90 transition-opacity" title="Click to expand" />}
+                                            <p className="text-sm text-gray-800 leading-relaxed font-medium">{text}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {onProposeSwap && (
+                        <button onClick={() => { onClose(); onProposeSwap(user); }} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white font-extrabold py-4 rounded-2xl hover:shadow-lg transition-all flex items-center justify-center gap-2 mt-4 text-lg">
+                            <Handshake className="w-6 h-6" /> Propose a Swap
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {fullscreenImage && (
+                <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setFullscreenImage(null)}>
+                    <img src={fullscreenImage} className="max-w-full max-h-screen object-contain rounded-lg shadow-2xl" />
+                    <button className="absolute top-6 right-6 p-2 bg-white/10 text-white hover:bg-white/20 rounded-full transition">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function Feed() {
     const { user, dbUser } = useAuth();
     const [users, setUsers] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [viewingUser, setViewingUser] = useState(null);
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -293,7 +459,7 @@ function Feed() {
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-5 mb-5">
+                            <div className="flex items-center gap-5 mb-5 cursor-pointer" onClick={() => setViewingUser(u)}>
                                 {u.profilePicUrl ? (
                                     <img src={u.profilePicUrl} className="w-16 h-16 rounded-full object-cover border-4 border-teal-50 shadow-md group-hover:border-teal-100 transition-colors" />
                                 ) : (
@@ -351,6 +517,8 @@ function Feed() {
                     </div>
                 </div>
             )}
+
+            {viewingUser && <UserProfileModal user={viewingUser} onClose={() => setViewingUser(null)} onProposeSwap={(u) => { setViewingUser(null); setSelectedUser(u); }} />}
         </div>
     );
 }
@@ -665,6 +833,103 @@ function Collaborations() {
     );
 }
 
+function AdminDashboard() {
+    const [stats, setStats] = useState({ userCount: 0, requestCount: 0, acceptedCount: 0 });
+    const [modelName, setModelName] = useState('User');
+    const [operation, setOperation] = useState('find');
+    const [args, setArgs] = useState('[{}]');
+    const [result, setResult] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetch(`${API_BASE_URL}/admin/stats`)
+            .then(res => res.json())
+            .then(data => setStats(data))
+            .catch(err => console.error(err));
+    }, []);
+
+    const runQuery = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/admin/query`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ modelName, operation, args })
+            });
+            const data = await res.json();
+            setResult(data);
+        } catch (err) {
+            setResult({ error: err.message });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-[2rem] p-10 text-white shadow-2xl">
+                <h2 className="text-4xl font-black flex items-center gap-4 mb-4"><Database className="w-12 h-12 text-teal-400" /> Admin Control Center</h2>
+                <p className="text-gray-300 text-lg font-medium max-w-2xl leading-relaxed">Manage platform data, view global statistics, and execute direct database queries.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-black text-teal-600 mb-2">{stats.userCount}</span>
+                    <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Total Users</span>
+                </div>
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-black text-blue-600 mb-2">{stats.requestCount}</span>
+                    <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Swap Requests</span>
+                </div>
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-black text-emerald-600 mb-2">{stats.acceptedCount}</span>
+                    <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Active Collabs</span>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-gray-100">
+                <h3 className="text-2xl font-extrabold text-gray-900 mb-6 flex items-center gap-3"><Settings className="text-gray-400 w-6 h-6"/> Database Query Runner</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Model</label>
+                        <select value={modelName} onChange={e => setModelName(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none bg-gray-50 font-medium text-gray-800">
+                            <option value="User">User</option>
+                            <option value="SwapRequest">SwapRequest</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Operation</label>
+                        <select value={operation} onChange={e => setOperation(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none bg-gray-50 font-medium text-gray-800">
+                            <option value="find">find()</option>
+                            <option value="findOne">findOne()</option>
+                            <option value="findById">findById()</option>
+                            <option value="countDocuments">countDocuments()</option>
+                            <option value="deleteMany">deleteMany()</option>
+                            <option value="updateMany">updateMany()</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="mb-6">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Arguments (JSON Array)</label>
+                    <textarea value={args} onChange={e => setArgs(e.target.value)} rows="4" className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none bg-gray-50 font-mono text-sm resize-y text-gray-800" placeholder="[{}]" />
+                </div>
+                <button onClick={runQuery} disabled={loading} className="px-8 py-3 bg-gray-900 text-white font-extrabold rounded-xl hover:bg-gray-800 transition-colors shadow-md flex items-center justify-center">
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Execute Query'}
+                </button>
+
+                {result && (
+                    <div className="mt-8">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Results</label>
+                        <div className="bg-gray-900 rounded-2xl p-4 overflow-x-auto">
+                            <pre className="text-teal-400 font-mono text-sm">{JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function MainLayout() {
     const { logout, dbUser } = useAuth();
     const [activeTab, setActiveTab] = useState('feed');
@@ -696,6 +961,11 @@ function MainLayout() {
                             <button onClick={() => setActiveTab('leaderboard')} className={`font-black text-sm tracking-wide transition-all h-11 px-5 rounded-2xl flex items-center gap-2 ${activeTab === 'leaderboard' ? 'bg-yellow-100 text-yellow-800 shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-900'} uppercase`}>
                                 <Trophy className="w-4 h-4" /> Leaderboard
                             </button>
+                            {dbUser?.isAdmin && (
+                                <button onClick={() => setActiveTab('admin')} className={`font-black text-sm tracking-wide transition-all h-11 px-5 rounded-2xl flex items-center gap-2 ${activeTab === 'admin' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'} uppercase`}>
+                                    <Database className="w-4 h-4" /> Admin
+                                </button>
+                            )}
                             <div className="flex items-center gap-4 ml-2 sm:ml-6 pl-4 sm:pl-8 border-l-2 border-gray-100">
                                 <button onClick={() => setIsEditingProfile(true)} className="flex items-center gap-3 group focus:outline-none text-left">
                                     {dbUser?.profilePicUrl ? (
@@ -722,6 +992,7 @@ function MainLayout() {
                 {activeTab === 'inbox' && <Inbox />}
                 {activeTab === 'collaborate' && <Collaborations />}
                 {activeTab === 'leaderboard' && <Leaderboard />}
+                {activeTab === 'admin' && dbUser?.isAdmin && <AdminDashboard />}
             </main>
 
             {isEditingProfile && <ProfileEditor isEditing={true} onClose={() => setIsEditingProfile(false)} />}
