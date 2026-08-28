@@ -76,7 +76,7 @@ const upload = multer({ storage: storage });
 
 // --- API Endpoints ---
 
-// Create or update User
+
 app.post('/api/users', upload.any(), async (req, res) => {
     try {
         const { uid, email, name, bio, skillsOffered, skillsWanted, posts, certifications } = req.body;
@@ -86,8 +86,8 @@ app.post('/api/users', upload.any(), async (req, res) => {
         const parsedCertifications = Array.isArray(certifications) ? certifications : JSON.parse(certifications || '[]');
 
         let profilePicUrl;
-        const postImages = {}; 
-        const certImages = {}; 
+        const postImages = {};
+        const certImages = {};
 
         if (req.files) {
             for (const file of req.files) {
@@ -352,17 +352,17 @@ app.post('/api/admin/query', async (req, res) => {
         else return res.status(400).json({ error: 'Invalid modelName' });
 
         const parsedArgs = typeof args === 'string' ? JSON.parse(args || '[]') : (args || []);
-        
+
         let result;
         if (typeof model[operation] !== 'function') {
-           return res.status(400).json({ error: `Invalid operation on model ${modelName}` });
+            return res.status(400).json({ error: `Invalid operation on model ${modelName}` });
         }
-        
+
         // Wait for query evaluation
         const queryResult = model[operation](...parsedArgs);
         // Note: some mongoose results might be queries instead of promises.
         result = await queryResult;
-        
+
         res.json({ result });
     } catch (error) {
         res.status(500).json({ error: error.message });
